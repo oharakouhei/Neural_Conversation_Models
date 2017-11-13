@@ -1,3 +1,5 @@
+Original: [https://github.com/pbhatia243/Neural_Conversation_Models](https://github.com/pbhatia243/Neural_Conversation_Models)
+
 # Neural_Conversation_Models
 =================================
 This implementation contains an extension of seq2seq tutorial for conversation models in Tensorflow:
