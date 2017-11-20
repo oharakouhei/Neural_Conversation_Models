@@ -167,9 +167,9 @@ def sentence_to_token_ids(sentence, vocabulary,
         a list of integers, the token-ids for the sentence.
     """
     if tokenizer:
-        words = tokenizer(sentence)
+        words = tokenizer(parse(sentence))
     else:
-        words = basic_tokenizer(sentence)
+        words = basic_tokenizer(parse(sentence))
     # if not normalize_digits:
     return [vocabulary.get(w, UNK_ID) for w in words]
     # Normalize digits by 0 before looking words up in the vocabulary.
