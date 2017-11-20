@@ -5,12 +5,12 @@ Original: [https://github.com/pbhatia243/Neural_Conversation_Models](https://git
 This implementation contains an extension of seq2seq tutorial for conversation models in Tensorflow:
 
 1. Option to use Beam Search and Beam Size for decoding
-    
+
 2. Currently, it supports
     - Simple seq2seq  models
     - Attention based seq2seq models
-    
-3. To get better results use beam search during decoding / inference 
+
+3. To get better results use beam search during decoding / inference
 
 Examples of basic model can be found in this paper.
 
@@ -22,6 +22,7 @@ Prerequisites
 
 - Python 2.7 or Python 3.3+
 - [NLTK](http://www.nltk.org/)
+- [MeCab](http://taku910.github.io/mecab/)
 - [TensorFlow](https://www.tensorflow.org/)
 
 Data
@@ -29,9 +30,9 @@ Data
 Data accepted is in the tsv format where first component is the context and second is the reply
 
 TSV format Ubuntu Dialog Data can be found [here](https://drive.google.com/file/d/0BwPa9lrosQKdSTZxZ0tydUFGWE0/view)
- 
+
 example :-
-1. What are you doing ? \t Writing seq2seq model . 
+1. What are you doing ? \t Writing seq2seq model .
 
 Usage
 -----
@@ -47,7 +48,7 @@ To test an existing model:
 
 Todo
 -----
-1. Add other state of art neural models. 
+1. Add other state of art neural models.
 2. Adding layer normalization( in progress )
 
 https://github.com/pbhatia243/tf-layer-norm

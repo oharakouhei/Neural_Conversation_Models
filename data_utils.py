@@ -21,6 +21,7 @@ import tarfile
 
 from six.moves import urllib
 
+import MeCab
 from tensorflow.python.platform import gfile
 
 # Special vocabulary symbols - we always put them at the start.
@@ -40,6 +41,8 @@ UNK_ID = 3
 _WORD_SPLIT = re.compile("([.,!/?\":;)(])")
 _DIGIT_RE = re.compile(r"\d")
 
+tagger = MeCab.Tagger("-Owakati")
+
 
 def gunzip_file(gz_path, new_path):
     """Unzips from gz_path into new_path."""
@@ -50,12 +53,16 @@ def gunzip_file(gz_path, new_path):
                 new_file.write(line)
 
 
+def parse(sentence):
+    return tagger.parse(sentence)
+
+
 def basic_tokenizer(sentence):
     """Very basic tokenizer: split the sentence into a list of tokens.
-    >>> basic_tokenizer("How are you? I'm fine.")
-    ['How', 'are', 'you', '?', "I'm", 'fine', '.']
-    >>> basic_tokenizer("調子はどうですか？ 良い感じだよ。")
-    ['調子はどうですか？', '良い感じだよ。']
+    >>> basic_tokenizer("How are you ? I ' m fine .")
+    ['How', 'are', 'you', '?', 'I', "'", 'm', 'fine', '.']
+    >>> basic_tokenizer("調子 は どう です か ？ 良い 感じ だよ 。")
+    ['調子', 'は', 'どう', 'です', 'か', '？', '良い', '感じ', 'だよ', '。']
     """
     words = []
     for space_separated_fragment in sentence.strip().split():
@@ -67,8 +74,9 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size,
                       tokenizer=None, normalize_digits=True):
     """Create vocabulary file (if it does not exist yet) from data file.
 
-    Data file is assumed to contain one sentence per line. Each sentence is
-    tokenized and digits are normalized (if normalize_digits is set).
+    Data file is assumed to contain one sentence per line.
+    Each sentence is formatted such as "{utterance} {response}"..
+    Each sentence is tokenized and digits are normalized (if normalize_digits is set).
     Vocabulary contains the most-frequent tokens up to max_vocabulary_size.
     We write it to vocabulary_path in a one-token-per-line format, so that later
     token in the first line gets id=0, second line gets id=1, and so on.
@@ -92,7 +100,7 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size,
                     print("  processing line %d" % counter)
                 text_conversation = line.strip().lower().split("\t")
                 if len(text_conversation) == 2:
-                    txt = text_conversation[0] + " " + text_conversation[1]
+                    txt = parse(text_conversation[0]) + " " + parse(text_conversation[1])
                     tokens = tokenizer(txt) if tokenizer else basic_tokenizer(txt)
                     for w in tokens:
                         # word = re.sub(_DIGIT_RE, "0", w) if normalize_digits else w
