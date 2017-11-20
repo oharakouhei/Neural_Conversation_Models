@@ -75,16 +75,16 @@ class Seq2SeqModel(object):
             def sampled_loss(inputs, labels):
                 with tf.device("/cpu:0"):
                     labels = tf.reshape(labels, [-1, 1])
-                    return tf.nn.sampled_softmax_loss(w_t, b, inputs, labels, num_samples,
+                    return tf.nn.sampled_softmax_loss(w_t, b, labels, inputs, num_samples,
                                                       self.target_vocab_size)
             softmax_loss_function = sampled_loss
         # Create the internal multi-layer cell for our RNN.
-        single_cell = tf.nn.rnn_cell.GRUCell(size)
+        single_cell = tf.contrib.rnn.GRUCell(size)
         if use_lstm:
-            single_cell = tf.nn.rnn_cell.BasicLSTMCell(size)
+            single_cell = tf.contrib.rnn.BasicLSTMCell(size)
         cell = single_cell
         if num_layers > 1:
-            cell = tf.nn.rnn_cell.MultiRNNCell([single_cell] * num_layers, state_is_tuple=False)
+            cell = tf.contrib.rnn.MultiRNNCell([single_cell] * num_layers, state_is_tuple=False)
 
         # The seq2seq function: we use embedding for the input and attention.
         def seq2seq_f(encoder_inputs, decoder_inputs, do_decode):

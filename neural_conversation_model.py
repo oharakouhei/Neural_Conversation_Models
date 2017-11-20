@@ -71,7 +71,7 @@ def read_chat_data(data_path, vocabulary_path, max_size=None):
     print(len(vocab))
     print(max_size)
     data_set = [[] for _ in _buckets]
-    with codecs.open(data_path, "rb") as fi:
+    with codecs.open(data_path, "r") as fi:
         for line in fi.readlines():
             counter += 1
             if max_size != 0 and counter > max_size:
@@ -111,7 +111,7 @@ def create_model(session, forward_only, beam_search, beam_size=10, attention=Tru
         model.saver.restore(session, ckpt.model_checkpoint_path)
     else:
         print("Created model with fresh parameters.")
-        session.run(tf.initialize_all_variables())
+        session.run(tf.global_variables_initializer())
     return model
 
 
@@ -132,7 +132,7 @@ def create_models(path, en_vocab_size, session, forward_only, beam_search, beam_
         model.saver.restore(session, ckpt.model_checkpoint_path)
     else:
         print("Created model with fresh parameters.")
-        session.run(tf.initialize_all_variables())
+        session.run(tf.global_variables_initializer())
     return model
 
 

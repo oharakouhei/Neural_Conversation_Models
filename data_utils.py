@@ -50,7 +50,7 @@ def gunzip_file(gz_path, new_path):
     with gzip.open(gz_path, "rb") as gz_file:
         with open(new_path, "w") as new_file:
             for line in gz_file:
-                new_file.write(line)
+                new_file.write(line.decode("utf-8"))
 
 
 def parse(sentence):
