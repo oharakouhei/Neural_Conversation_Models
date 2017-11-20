@@ -51,7 +51,12 @@ def gunzip_file(gz_path, new_path):
 
 
 def basic_tokenizer(sentence):
-    """Very basic tokenizer: split the sentence into a list of tokens."""
+    """Very basic tokenizer: split the sentence into a list of tokens.
+    >>> basic_tokenizer("How are you? I'm fine.")
+    ['How', 'are', 'you', '?', "I'm", 'fine', '.']
+    >>> basic_tokenizer("調子はどうですか？ 良い感じだよ。")
+    ['調子はどうですか？', '良い感じだよ。']
+    """
     words = []
     for space_separated_fragment in sentence.strip().split():
         words.extend(re.split(_WORD_SPLIT, space_separated_fragment))
@@ -191,3 +196,8 @@ def data_to_token_ids(data_path, target_path, vocabulary_path,
                         print("  tokenizing line %d" % counter)
                     token_ids = sentence_to_token_ids(line, vocab, tokenizer, normalize_digits)
                     tokens_file.write(" ".join([str(tok) for tok in token_ids]) + "\n")
+
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
