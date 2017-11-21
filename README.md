@@ -48,6 +48,10 @@ To test an existing model:
 Tensorboard
 -----
 
+if tensorboard is not installed, please execute the following.
+
+    [server]$ pip install tensorboard
+
 Execute the following in this project root directory
 
     [server]$ tensorboard --logdir=train_dir/logs/
