@@ -45,6 +45,18 @@ To test an existing model:
 
     $ python neural_conversation_model.py --train_dir ubuntu/ --en_vocab_size 60000 --size 512 --data_path ubuntu/train.tsv --dev_data ubuntu/valid.tsv  --vocab_path ubuntu/60k_vocan.en --attention --decode --beam_search --beam_size 25
 
+Tensorboard
+-----
+
+Execute the following in this project root directory
+
+    [server]$ tensorboard --logdir=train_dir/logs/
+
+To monitor the variables from your local browser
+
+    [your_local_pc]$ ssh -L 6006:127.0.0.1:6006 server
+
+Access http://localhost:6006
 
 Todo
 -----

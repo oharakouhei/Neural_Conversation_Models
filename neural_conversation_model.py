@@ -149,6 +149,25 @@ def train():
     create_vocabulary(vocab_path, data_path, FLAGS.en_vocab_size)
 
     with tf.Session() as sess:
+        # setup for tensorboard
+        log_base_path = os.path.join(FLAGS.train_dir, "logs")
+        with tf.variable_scope('perplexity'):
+            log_perplexity = tf.get_variable("log_perplexity", initializer=0.0)
+            writer_global_step_perplexity = tf.summary.FileWriter(os.path.join(log_base_path,
+                                                                               "perplexity",
+                                                                               "global_step_perplexity"))
+            writer_dev_buckets = [tf.summary.FileWriter(os.path.join(log_base_path,
+                                                                     "perplexity",
+                                                                     "dev_bucket{}_perplexity".format(bucket_id)))
+                                  for bucket_id in xrange(len(_buckets))]
+            scalar = tf.summary.scalar("perplexity", log_perplexity)
+            write_perplexity_op = tf.summary.merge([scalar])
+        with tf.variable_scope('learning_rate'):
+            log_learning_rate = tf.get_variable("log_learning_rate", initializer=0.0)
+            writer_learning_rate = tf.summary.FileWriter(os.path.join(log_base_path, "learning_rate", "learning_rate"))
+            scalar = tf.summary.scalar("learning_rate", log_learning_rate)
+            write_learning_rate_op = tf.summary.merge([scalar])
+
         # Create model.
         print("Creating %d layers of %d units." % (FLAGS.num_layers, FLAGS.size))
         model = create_model(sess, False, beam_search=beam_search, beam_size=beam_size, attention=attention)
@@ -198,6 +217,12 @@ def train():
                 print("global step %d learning rate %.4f step-time %.2f perplexity "
                       "%.2f" % (model.global_step.eval(), model.learning_rate.eval(),
                                 step_time, perplexity))
+                summary = sess.run(write_perplexity_op, {log_perplexity: perplexity})
+                writer_global_step_perplexity.add_summary(summary, current_step)
+                writer_global_step_perplexity.flush()
+                summary = sess.run(write_learning_rate_op, {log_learning_rate: model.learning_rate.eval()})
+                writer_learning_rate.add_summary(summary, current_step)
+                writer_learning_rate.flush()
                 # # Decrease learning rate if no improvement was seen over last 3 times.
                 if len(previous_losses) > 2 and loss > max(previous_losses[-3:]):
                     sess.run(model.learning_rate_decay_op)
@@ -216,6 +241,9 @@ def train():
                                                  target_weights, bucket_id, True, beam_search)
                     eval_ppx = math.exp(eval_loss) if eval_loss < 300 else float('inf')
                     print("  eval: bucket %d perplexity %.2f" % (bucket_id, eval_ppx))
+                    summary = sess.run(write_perplexity_op, {log_perplexity: eval_ppx})
+                    writer_dev_buckets[bucket_id].add_summary(summary, current_step)
+                    writer_dev_buckets[bucket_id].flush()
                 sys.stdout.flush()
 
 

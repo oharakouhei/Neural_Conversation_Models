@@ -268,9 +268,9 @@ def embedding_rnn_decoder(decoder_inputs, initial_state, cell, num_symbols,
         proj_biases.get_shape().assert_is_compatible_with([num_symbols])
 
     with variable_scope.variable_scope(scope or "embedding_rnn_decoder"):
-        with ops.device("/cpu:0"):
-            embedding = variable_scope.get_variable("embedding",
-                                                    [num_symbols, embedding_size])
+        # with ops.device("/cpu:0"):
+        embedding = variable_scope.get_variable("embedding",
+                                                [num_symbols, embedding_size])
 
         if beam_search:
             loop_function = _extract_beam_search(embedding, beam_size, num_symbols, embedding_size,
@@ -705,8 +705,8 @@ def embedding_attention_decoder(decoder_inputs, initial_state, attention_states,
         proj_biases.get_shape().assert_is_compatible_with([num_symbols])
 
     with variable_scope.variable_scope(scope or "embedding_attention_decoder"):
-        with ops.device("/cpu:0"):
-            embedding = variable_scope.get_variable("embedding", [num_symbols, embedding_size])
+        # with ops.device("/cpu:0"):
+        embedding = variable_scope.get_variable("embedding", [num_symbols, embedding_size])
         print("Check number of symbols")
         print(num_symbols)
         if beam_search:
@@ -833,8 +833,7 @@ def sequence_loss_by_example(logits, targets, weights,
     if len(targets) != len(logits) or len(weights) != len(logits):
         raise ValueError("Lengths of logits, weights, and targets must be the same "
                          "%d, %d, %d." % (len(logits), len(weights), len(targets)))
-    with ops.op_scope(logits + targets + weights, name,
-                      "sequence_loss_by_example"):
+    with tf.name_scope(name, "sequence_loss_by_example", logits + targets + weights):
         log_perp_list = []
         for logit, target, weight in zip(logits, targets, weights):
             if softmax_loss_function is None:
@@ -873,7 +872,7 @@ def sequence_loss(logits, targets, weights,
     Raises:
         ValueError: If len(logits) is different from len(targets) or len(weights).
     """
-    with ops.op_scope(logits + targets + weights, name, "sequence_loss"):
+    with tf.name_scope(name, "sequence_loss", logits + targets + weights):
         cost = math_ops.reduce_sum(sequence_loss_by_example(
             logits, targets, weights,
             average_across_timesteps=average_across_timesteps,
@@ -933,7 +932,7 @@ def model_with_buckets(encoder_inputs, decoder_inputs, targets, weights,
     all_inputs = encoder_inputs + decoder_inputs + targets + weights
     losses = []
     outputs = []
-    with ops.op_scope(all_inputs, name, "model_with_buckets"):
+    with tf.name_scope(name, "model_with_buckets", all_inputs):
         for j, bucket in enumerate(buckets):
             with variable_scope.variable_scope(variable_scope.get_variable_scope(), reuse=True if j > 0 else None):
                 bucket_outputs, _ = seq2seq(encoder_inputs[:bucket[0]],
@@ -998,7 +997,7 @@ def decode_model_with_buckets(encoder_inputs, decoder_inputs, targets, weights,
     outputs = []
     beam_paths = []
     beam_symbols = []
-    with ops.op_scope(all_inputs, name, "model_with_buckets"):
+    with tf.name_scope(name, "model_with_buckets", all_inputs):
         for j, bucket in enumerate(buckets):
             with variable_scope.variable_scope(variable_scope.get_variable_scope(), reuse=True if j > 0 else None):
                 bucket_outputs, _, beam_path, beam_symbol = seq2seq(encoder_inputs[:bucket[0]],

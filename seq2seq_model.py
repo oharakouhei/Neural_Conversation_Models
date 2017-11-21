@@ -66,14 +66,16 @@ class Seq2SeqModel(object):
         softmax_loss_function = None
         # Sampled softmax only makes sense if we sample less than vocabulary size.
         if num_samples > 0 and num_samples < self.target_vocab_size:
-            with tf.device("/cpu:0"):
+            # with tf.device("/cpu:0"):
+            with tf.variable_scope("output_projection"):
                 w = tf.get_variable("proj_w", [size, self.target_vocab_size])
                 w_t = tf.transpose(w)
                 b = tf.get_variable("proj_b", [self.target_vocab_size])
             output_projection = (w, b)
 
             def sampled_loss(inputs, labels):
-                with tf.device("/cpu:0"):
+                # with tf.device("/cpu:0"):
+                with tf.variable_scope("soft_max"):
                     labels = tf.reshape(labels, [-1, 1])
                     return tf.nn.sampled_softmax_loss(w_t, b, labels, inputs, num_samples,
                                                       self.target_vocab_size)
@@ -196,6 +198,7 @@ class Seq2SeqModel(object):
         Raises:
             ValueError: if length of encoder_inputs, decoder_inputs, or
                         target_weights disagrees with bucket size for the specified bucket_id.
+
         """
         # Check if the sizes match.
         encoder_size, decoder_size = self.buckets[bucket_id]
