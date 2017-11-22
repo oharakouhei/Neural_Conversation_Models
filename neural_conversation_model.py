@@ -29,7 +29,7 @@ from data_utils import *
 from seq2seq_model import *
 import codecs
 
-tf.app.flags.DEFINE_float("learning_rate", 0.5, "Learning rate.")
+tf.app.flags.DEFINE_float("learning_rate", 0.001, "Learning rate.")
 tf.app.flags.DEFINE_float("learning_rate_decay_factor", 0.99,
                           "Learning rate decays by this much.")
 tf.app.flags.DEFINE_float("max_gradient_norm", 5.0,
@@ -156,10 +156,9 @@ def train():
             writer_global_step_perplexity = tf.summary.FileWriter(os.path.join(log_base_path,
                                                                                "perplexity",
                                                                                "global_step_perplexity"))
-            writer_dev_buckets = [tf.summary.FileWriter(os.path.join(log_base_path,
-                                                                     "perplexity",
-                                                                     "dev_bucket{}_perplexity".format(bucket_id)))
-                                  for bucket_id in xrange(len(_buckets))]
+            writer_dev_perplexity_buckets = [tf.summary.FileWriter(
+                os.path.join(log_base_path, "perplexity", "dev_bucket{}_perplexity".format(bucket_id)))
+                for bucket_id in xrange(len(_buckets))]
             scalar = tf.summary.scalar("perplexity", log_perplexity)
             write_perplexity_op = tf.summary.merge([scalar])
         with tf.variable_scope('learning_rate'):
@@ -219,12 +218,10 @@ def train():
                                 step_time, perplexity))
                 summary = sess.run(write_perplexity_op, {log_perplexity: perplexity})
                 writer_global_step_perplexity.add_summary(summary, current_step)
-                writer_global_step_perplexity.flush()
                 summary = sess.run(write_learning_rate_op, {log_learning_rate: model.learning_rate.eval()})
                 writer_learning_rate.add_summary(summary, current_step)
-                writer_learning_rate.flush()
                 # # Decrease learning rate if no improvement was seen over last 3 times.
-                if len(previous_losses) > 2 and loss != float('inf') and loss > max(previous_losses[-3:]):
+                if len(previous_losses) > 2 and perplexity != float('inf') and loss > max(previous_losses[-3:]):
                     sess.run(model.learning_rate_decay_op)
                 previous_losses.append(loss)
                 # # Save checkpoint and zero timer and loss.
@@ -242,8 +239,7 @@ def train():
                     eval_ppx = math.exp(eval_loss) if eval_loss < 300 else float('inf')
                     print("  eval: bucket %d perplexity %.2f" % (bucket_id, eval_ppx))
                     summary = sess.run(write_perplexity_op, {log_perplexity: eval_ppx})
-                    writer_dev_buckets[bucket_id].add_summary(summary, current_step)
-                    writer_dev_buckets[bucket_id].flush()
+                    writer_dev_perplexity_buckets[bucket_id].add_summary(summary, current_step)
                 sys.stdout.flush()
 
 
