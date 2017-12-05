@@ -291,6 +291,7 @@ def embedding_rnn_decoder(decoder_inputs, initial_state, cell, num_symbols,
 
 def embedding_rnn_seq2seq(encoder_inputs, decoder_inputs, cell,
                           num_encoder_symbols, num_decoder_symbols,
+                          encoder_sequence_lengths,
                           embedding_size, output_projection=None,
                           feed_previous=False, dtype=dtypes.float32,
                           scope=None, beam_search=True, beam_size=10):
@@ -309,6 +310,7 @@ def embedding_rnn_seq2seq(encoder_inputs, decoder_inputs, cell,
         cell: rnn_cell.RNNCell defining the cell function and size.
         num_encoder_symbols: Integer; number of symbols on the encoder side.
         num_decoder_symbols: Integer; number of symbols on the decoder side.
+        encoder_sequence_lengths: 1D int32 Tensor of shape [batch_size].
         embedding_size: Integer, the length of the embedding vector for each symbol.
         output_projection: None or a pair (W, B) of output projection weights and
             biases; W has shape [output_size x num_decoder_symbols] and B has
@@ -337,7 +339,8 @@ def embedding_rnn_seq2seq(encoder_inputs, decoder_inputs, cell,
         encoder_cell = tf.contrib.rnn.EmbeddingWrapper(
             cell, embedding_classes=num_encoder_symbols,
             embedding_size=embedding_size)
-        _, encoder_state = tf.contrib.rnn.static_rnn(encoder_cell, encoder_inputs, dtype=dtype)
+        _, encoder_state = tf.contrib.rnn.static_rnn(encoder_cell, encoder_inputs, dtype=dtype,
+                                                     sequence_length=encoder_sequence_lengths)
 
         # Decoder.
         if output_projection is None:
@@ -734,6 +737,7 @@ def embedding_attention_decoder(decoder_inputs, initial_state, attention_states,
 
 def embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
                                 num_encoder_symbols, num_decoder_symbols,
+                                encoder_sequence_lengths,
                                 embedding_size,
                                 num_heads=1, output_projection=None,
                                 feed_previous=False, dtype=dtypes.float32,
@@ -754,6 +758,7 @@ def embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
         cell: rnn_cell.RNNCell defining the cell function and size.
         num_encoder_symbols: Integer; number of symbols on the encoder side.
         num_decoder_symbols: Integer; number of symbols on the decoder side.
+        encoder_sequence_lengths: 1D int32 Tensor of shape [batch_size].
         embedding_size: Integer, the length of the embedding vector for each symbol.
         num_heads: Number of attention heads that read from attention_states.
         output_projection: None or a pair (W, B) of output projection weights and
@@ -783,7 +788,10 @@ def embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
         # Encoder.
         encoder_cell = tf.contrib.rnn.EmbeddingWrapper(cell, embedding_classes=num_encoder_symbols,
                                                        embedding_size=embedding_size)
-        encoder_outputs, encoder_state = tf.contrib.rnn.static_rnn(encoder_cell, encoder_inputs, dtype=dtype)
+        encoder_outputs, encoder_state = tf.contrib.rnn.static_rnn(encoder_cell, encoder_inputs, dtype=dtype,
+                                                                   sequence_length=encoder_sequence_lengths)
+        # bidirectional_rnn(encoder_cell. encoder_cell, ...)
+        # (fo, bo), (fs, fo)
         print("Symbols")
         print(num_encoder_symbols)
         print(num_decoder_symbols)
@@ -838,7 +846,7 @@ def sequence_loss_by_example(logits, targets, weights,
         for logit, target, weight in zip(logits, targets, weights):
             if softmax_loss_function is None:
                 target = array_ops.reshape(target, [-1])
-                crossent = nn_ops.sparse_softmax_cross_entropy_with_logits(logit, target)
+                crossent = nn_ops.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target)
             else:
                 crossent = softmax_loss_function(logit, target)
             log_perp_list.append(crossent * weight)

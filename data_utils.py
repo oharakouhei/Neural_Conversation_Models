@@ -41,7 +41,8 @@ UNK_ID = 3
 _WORD_SPLIT = re.compile("([.,!/?\":;)(])")
 _DIGIT_RE = re.compile(r"\d")
 
-tagger = MeCab.Tagger("-Owakati")
+LOCAL = os.getenv("LOCAL", "~/local/")
+tagger = MeCab.Tagger("-d {}/lib/mecab/dic/mecab-ipadic-neologd -Owakati".format(LOCAL))
 
 
 def gunzip_file(gz_path, new_path):

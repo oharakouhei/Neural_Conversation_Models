@@ -97,6 +97,7 @@ class Seq2SeqModel(object):
                                                    cell,
                                                    num_encoder_symbols=source_vocab_size,
                                                    num_decoder_symbols=target_vocab_size,
+                                                   encoder_sequence_lengths=self.encoder_sequence_lengths,
                                                    embedding_size=size,
                                                    output_projection=output_projection,
                                                    feed_previous=do_decode,
@@ -109,6 +110,7 @@ class Seq2SeqModel(object):
                                              cell,
                                              num_encoder_symbols=source_vocab_size,
                                              num_decoder_symbols=target_vocab_size,
+                                             encoder_sequence_lengths=self.encoder_sequence_lengths,
                                              embedding_size=size,
                                              output_projection=output_projection,
                                              feed_previous=do_decode,
@@ -127,6 +129,8 @@ class Seq2SeqModel(object):
                                                       name="decoder{0}".format(i)))
             self.target_weights.append(tf.placeholder(tf.float32, shape=[None],
                                                       name="weight{0}".format(i)))
+        self.encoder_sequence_lengths = tf.placeholder(tf.int32, shape=[None],
+                                                       name="encoder_sequence_lengths")
 
         # Our targets are decoder inputs shifted by one.
         targets = [self.decoder_inputs[i + 1]
@@ -177,10 +181,10 @@ class Seq2SeqModel(object):
                 self.updates.append(opt.apply_gradients(zip(clipped_gradients, params),
                                                         global_step=self.global_step))
 
-        self.saver = tf.train.Saver(tf.all_variables())
+        self.saver = tf.train.Saver()
 
     def step(self, session, encoder_inputs, decoder_inputs, target_weights,
-             bucket_id, forward_only, beam_search):
+             encoder_sequence_lengths, bucket_id, forward_only, beam_search):
         """Run a step of the model feeding the given inputs.
 
         Args:
@@ -188,6 +192,7 @@ class Seq2SeqModel(object):
             encoder_inputs: list of numpy int vectors to feed as encoder inputs.
             decoder_inputs: list of numpy int vectors to feed as decoder inputs.
             target_weights: list of numpy float vectors to feed as target weights.
+            encoder_sequence_lengths: list of int to feed as encoder sequence lengths.
             bucket_id: which bucket of the model to use.
             forward_only: whether to do the backward step or only forward.
 
@@ -219,6 +224,7 @@ class Seq2SeqModel(object):
         for l in xrange(decoder_size):
             input_feed[self.decoder_inputs[l].name] = decoder_inputs[l]
             input_feed[self.target_weights[l].name] = target_weights[l]
+        input_feed[self.encoder_sequence_lengths.name] = encoder_sequence_lengths
 
         # Since our targets are decoder inputs shifted by one, we need one more.
         last_target = self.decoder_inputs[decoder_size].name
@@ -261,11 +267,11 @@ class Seq2SeqModel(object):
             bucket_id: integer, which bucket to get the batch for.
 
         Returns:
-            The triple (encoder_inputs, decoder_inputs, target_weights) for
+            The triple (encoder_inputs, decoder_inputs, target_weights, encoder_sequence_lengths) for
             the constructed batch that has the proper format to call step(...) later.
         """
         encoder_size, decoder_size = self.buckets[bucket_id]
-        encoder_inputs, decoder_inputs = [], []
+        encoder_inputs, decoder_inputs, encoder_sequence_lengths = [], [], []
 
         # Get a random batch of encoder and decoder inputs from data,
         # pad them if needed, reverse encoder inputs and add GO to decoder.
@@ -273,18 +279,21 @@ class Seq2SeqModel(object):
             encoder_input, decoder_input = random.choice(data[bucket_id])
 
             # Encoder inputs are padded and then reversed.
-            encoder_pad = [PAD_ID] * (encoder_size - len(encoder_input))
-            encoder_inputs.append(list(reversed(encoder_input + encoder_pad)))
+            encoder_sequence_length = len(encoder_input)
+            encoder_sequence_lengths.append(encoder_sequence_length)
+            encoder_pad = [PAD_ID] * (encoder_size - encoder_sequence_length)
+            # encoder_inputs.append(list(reversed(encoder_input + encoder_pad)))  # [[ids of source words], [], [],...]
+            encoder_inputs.append(list(encoder_input + encoder_pad))  # [[ids of source words], [], [],...]
 
             # Decoder inputs get an extra "GO" symbol, and are padded then.
             decoder_pad_size = decoder_size - len(decoder_input) - 1
             decoder_inputs.append([GO_ID] + decoder_input +
-                                  [PAD_ID] * decoder_pad_size)
+                                  [PAD_ID] * decoder_pad_size)  # [[ids of target words], [], [],...]
 
         # Now we create batch-major vectors from the data selected above.
         batch_encoder_inputs, batch_decoder_inputs, batch_weights = [], [], []
 
-        # Batch encoder inputs are just re-indexed encoder_inputs.
+        # Batch encoder inputs are just re-indexed encoder_inputs. shape: [word_length x batch]
         for length_idx in xrange(encoder_size):
             batch_encoder_inputs.append(np.array([encoder_inputs[batch_idx][length_idx]
                                                   for batch_idx in xrange(self.batch_size)], dtype=np.int32))
@@ -304,4 +313,4 @@ class Seq2SeqModel(object):
                 if length_idx == decoder_size - 1 or target == PAD_ID:
                     batch_weight[batch_idx] = 0.0
             batch_weights.append(batch_weight)
-        return batch_encoder_inputs, batch_decoder_inputs, batch_weights
+        return batch_encoder_inputs, batch_decoder_inputs, batch_weights, encoder_sequence_lengths

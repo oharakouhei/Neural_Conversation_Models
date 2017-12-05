@@ -104,9 +104,7 @@ def create_model(session, forward_only, beam_search, beam_size=10, attention=Tru
     print(FLAGS.train_dir)
     ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
 
-    # ckpt.model_checkpoint_path ="./big_models/chat_bot.ckpt-183600"
-    # print ckpt.model_checkpoint_path
-    if ckpt and tf.gfile.Exists(ckpt.model_checkpoint_path):
+    if ckpt:
         print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
     else:
@@ -200,10 +198,12 @@ def train():
 
             # Get a batch and make a step.
             start_time = time.time()
-            encoder_inputs, decoder_inputs, target_weights = model.get_batch(train_set, bucket_id)
+            _r = model.get_batch(train_set, bucket_id)
+            encoder_inputs, decoder_inputs, target_weights, encoder_sequence_lengths = _r
 
             _, step_loss, _ = model.step(sess, encoder_inputs, decoder_inputs,
-                                         target_weights, bucket_id, False, beam_search)
+                                         target_weights, encoder_sequence_lengths,
+                                         bucket_id, False, beam_search)
             step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
             loss += step_loss / FLAGS.steps_per_checkpoint
             current_step += 1
@@ -233,9 +233,11 @@ def train():
                     if len(dev_set[bucket_id]) == 0:
                         print("  eval: empty bucket %d" % (bucket_id))
                         continue
-                    encoder_inputs, decoder_inputs, target_weights = model.get_batch(dev_set, bucket_id)
+                    _r = model.get_batch(dev_set, bucket_id)
+                    encoder_inputs, decoder_inputs, target_weights, encoder_sequence_lengths = _r
                     _, eval_loss, _ = model.step(sess, encoder_inputs, decoder_inputs,
-                                                 target_weights, bucket_id, True, beam_search)
+                                                 target_weights, encoder_sequence_lengths,
+                                                 bucket_id, True, beam_search)
                     eval_ppx = math.exp(eval_loss) if eval_loss < 300 else float('inf')
                     print("  eval: bucket %d perplexity %.2f" % (bucket_id, eval_ppx))
                     summary = sess.run(write_perplexity_op, {log_perplexity: eval_ppx})
@@ -269,12 +271,13 @@ def decode():
                 bucket_id = min([b for b in xrange(len(_buckets))
                                  if _buckets[b][0] > len(token_ids)])
                 # Get a 1-element batch to feed the sentence to the model.
-                encoder_inputs, decoder_inputs, target_weights = model.get_batch({bucket_id: [(token_ids, [])]},
-                                                                                 bucket_id)
+                _r = model.get_batch({bucket_id: [(token_ids, [])]}, bucket_id)
+                encoder_inputs, decoder_inputs, target_weights, encoder_sequence_lengths = _r
                 # Get output logits for the sentence.
                 # print bucket_id
                 path, symbol, output_logits = model.step(sess, encoder_inputs, decoder_inputs,
-                                                         target_weights, bucket_id, True, beam_search)
+                                                         target_weights, encoder_sequence_lengths,
+                                                         bucket_id, True, beam_search)
 
                 k = output_logits[0]
                 paths = []
@@ -317,11 +320,12 @@ def decode():
                                  if _buckets[b][0] > len(token_ids)])
                 # for loc in locs:
                 #    # Get a 1-element batch to feed the sentence to the model.
-                encoder_inputs, decoder_inputs, target_weights = model.get_batch({bucket_id: [(token_ids, [],)]},
-                                                                                 bucket_id)
+                _r = model.get_batch({bucket_id: [(token_ids, [],)]}, bucket_id)
+                encoder_inputs, decoder_inputs, target_weights, encoder_sequence_lengths = _r
 
                 _, _, output_logits = model.step(sess, encoder_inputs, decoder_inputs,
-                                                 target_weights, bucket_id, True, beam_search)
+                                                 target_weights, encoder_sequence_lengths,
+                                                 bucket_id, True, beam_search)
                 # This is a greedy decoder - outputs are just argmaxes of output_logits.
 
                 outputs = [int(np.argmax(logit, axis=1)) for logit in output_logits]
