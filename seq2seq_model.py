@@ -30,7 +30,8 @@ class Seq2SeqModel(object):
     def __init__(self, source_vocab_size, target_vocab_size, buckets, size,
                  num_layers, max_gradient_norm, batch_size, learning_rate,
                  learning_rate_decay_factor, use_lstm=False,
-                 num_samples=1024, forward_only=False, beam_search=True, beam_size=10, attention=True):
+                 num_samples=1024, forward_only=False, beam_search=True, beam_size=10,
+                 attention=True, bidirectional=False):
         """Create the model.
 
         Args:
@@ -81,12 +82,23 @@ class Seq2SeqModel(object):
                                                       self.target_vocab_size)
             softmax_loss_function = sampled_loss
         # Create the internal multi-layer cell for our RNN.
-        single_cell = tf.contrib.rnn.GRUCell(size)
+        single_encoder_cell = tf.contrib.rnn.GRUCell(size)
         if use_lstm:
-            single_cell = tf.contrib.rnn.BasicLSTMCell(size)
-        cell = single_cell
+            single_encoder_cell = tf.contrib.rnn.BasicLSTMCell(size)
+        encoder_cell = single_encoder_cell
         if num_layers > 1:
-            cell = tf.contrib.rnn.MultiRNNCell([single_cell] * num_layers, state_is_tuple=False)
+            encoder_cell = tf.contrib.rnn.MultiRNNCell([single_encoder_cell] * num_layers, state_is_tuple=False)
+        decoder_cell = None
+        if bidirectional:
+            # decoder cell should have 2x size of encoder cell
+            decoder_single_cell = tf.contrib.rnn.GRUCell(size * 2)
+            if use_lstm:
+                decoder_single_cell = tf.contrib.rnn.BasicLSTMCell(size * 2)
+            decoder_cell = decoder_single_cell
+            if num_layers > 1:
+                decoder_cell = tf.contrib.rnn.MultiRNNCell([decoder_single_cell] * num_layers, state_is_tuple=False)
+        else:
+            decoder_cell = encoder_cell
 
         # The seq2seq function: we use embedding for the input and attention.
         def seq2seq_f(encoder_inputs, decoder_inputs, do_decode):
@@ -94,7 +106,8 @@ class Seq2SeqModel(object):
                 print("Attention Model")
                 return embedding_attention_seq2seq(encoder_inputs,
                                                    decoder_inputs,
-                                                   cell,
+                                                   encoder_cell,
+                                                   decoder_cell,
                                                    num_encoder_symbols=source_vocab_size,
                                                    num_decoder_symbols=target_vocab_size,
                                                    encoder_sequence_lengths=self.encoder_sequence_lengths,
@@ -102,12 +115,14 @@ class Seq2SeqModel(object):
                                                    output_projection=output_projection,
                                                    feed_previous=do_decode,
                                                    beam_search=beam_search,
-                                                   beam_size=beam_size)
+                                                   beam_size=beam_size,
+                                                   bidirectional=bidirectional)
             else:
                 print("Simple Model")
                 return embedding_rnn_seq2seq(encoder_inputs,
                                              decoder_inputs,
-                                             cell,
+                                             encoder_cell,
+                                             decoder_cell,
                                              num_encoder_symbols=source_vocab_size,
                                              num_decoder_symbols=target_vocab_size,
                                              encoder_sequence_lengths=self.encoder_sequence_lengths,
@@ -115,7 +130,8 @@ class Seq2SeqModel(object):
                                              output_projection=output_projection,
                                              feed_previous=do_decode,
                                              beam_search=beam_search,
-                                             beam_size=beam_size)
+                                             beam_size=beam_size,
+                                             bidirectional=bidirectional)
 
         # Feeds for inputs.
         self.encoder_inputs = []

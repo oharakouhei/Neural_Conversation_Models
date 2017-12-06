@@ -289,12 +289,13 @@ def embedding_rnn_decoder(decoder_inputs, initial_state, cell, num_symbols,
                                loop_function=loop_function)
 
 
-def embedding_rnn_seq2seq(encoder_inputs, decoder_inputs, cell,
+def embedding_rnn_seq2seq(encoder_inputs, decoder_inputs, encoder_cell, decoder_cell,
                           num_encoder_symbols, num_decoder_symbols,
                           encoder_sequence_lengths,
                           embedding_size, output_projection=None,
                           feed_previous=False, dtype=dtypes.float32,
-                          scope=None, beam_search=True, beam_size=10):
+                          scope=None, beam_search=True, beam_size=10,
+                          bidirectional=False):
     """Embedding RNN sequence-to-sequence model.
 
     This model first embeds encoder_inputs by a newly created embedding (of shape
@@ -307,7 +308,8 @@ def embedding_rnn_seq2seq(encoder_inputs, decoder_inputs, cell,
     Args:
         encoder_inputs: A list of 1D int32 Tensors of shape [batch_size].
         decoder_inputs: A list of 1D int32 Tensors of shape [batch_size].
-        cell: rnn_cell.RNNCell defining the cell function and size.
+        encoder_cell: rnn_cell.RNNCell defining the cell function and size. for encoder
+        decoder_cell: rnn_cell.RNNCell defining the cell function and size. for decoder
         num_encoder_symbols: Integer; number of symbols on the encoder side.
         num_decoder_symbols: Integer; number of symbols on the decoder side.
         encoder_sequence_lengths: 1D int32 Tensor of shape [batch_size].
@@ -324,7 +326,9 @@ def embedding_rnn_seq2seq(encoder_inputs, decoder_inputs, cell,
             rnn cells (default: tf.float32).
         scope: VariableScope for the created subgraph; defaults to
             "embedding_rnn_seq2seq"
-
+        beam_search: boolean.
+        beam_size: integer.
+        bidirectional: boolean. Flag of using bidirectional rnn or not.
     Returns:
         A tuple of the form (outputs, state), where:
             outputs: A list of the same length as decoder_inputs of 2D Tensors with
@@ -336,17 +340,22 @@ def embedding_rnn_seq2seq(encoder_inputs, decoder_inputs, cell,
     """
     with variable_scope.variable_scope(scope or "embedding_rnn_seq2seq"):
         # Encoder.
-        encoder_cell = tf.contrib.rnn.EmbeddingWrapper(
-            cell, embedding_classes=num_encoder_symbols,
-            embedding_size=embedding_size)
-        _, encoder_state = tf.contrib.rnn.static_rnn(encoder_cell, encoder_inputs, dtype=dtype,
-                                                     sequence_length=encoder_sequence_lengths)
+        encoder_cell = tf.contrib.rnn.EmbeddingWrapper(encoder_cell, embedding_classes=num_encoder_symbols,
+                                                       embedding_size=embedding_size)
+        if bidirectional:
+            _r = tf.contrib.rnn.static_bidirectional_rnn(encoder_cell, encoder_cell, encoder_inputs, dtype=dtype,
+                                                         sequence_length=encoder_sequence_lengths)
+            _, fw_state, bw_state = _r
+            encoder_state = tf.concat([fw_state, bw_state], axis=1)
+        else:
+            _, encoder_state = tf.contrib.rnn.static_rnn(encoder_cell, encoder_inputs, dtype=dtype,
+                                                         sequence_length=encoder_sequence_lengths)
 
         # Decoder.
         if output_projection is None:
-            cell = tf.contrib.rnn.OutputProjectionWrapper(cell, num_decoder_symbols)
+            decoder_cell = tf.contrib.rnn.OutputProjectionWrapper(decoder_cell, num_decoder_symbols)
 
-        return embedding_rnn_decoder(decoder_inputs, encoder_state, cell, num_decoder_symbols,
+        return embedding_rnn_decoder(decoder_inputs, encoder_state, decoder_cell, num_decoder_symbols,
                                      embedding_size, output_projection=output_projection,
                                      feed_previous=feed_previous, beam_search=beam_search, beam_size=beam_size)
 
@@ -711,7 +720,7 @@ def embedding_attention_decoder(decoder_inputs, initial_state, attention_states,
         # with ops.device("/cpu:0"):
         embedding = variable_scope.get_variable("embedding", [num_symbols, embedding_size])
         print("Check number of symbols")
-        print(num_symbols)
+        print("num_symbols: {}".format(num_symbols))
         if beam_search:
             loop_function = _extract_beam_search(embedding, beam_size, num_symbols, embedding_size, output_projection,
                                                  update_embedding_for_previous)
@@ -735,13 +744,14 @@ def embedding_attention_decoder(decoder_inputs, initial_state, attention_states,
                                      initial_state_attention=initial_state_attention)
 
 
-def embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
+def embedding_attention_seq2seq(encoder_inputs, decoder_inputs, encoder_cell, decoder_cell,
                                 num_encoder_symbols, num_decoder_symbols,
                                 encoder_sequence_lengths,
                                 embedding_size,
                                 num_heads=1, output_projection=None,
                                 feed_previous=False, dtype=dtypes.float32,
-                                scope=None, initial_state_attention=False, beam_search=True, beam_size=10):
+                                scope=None, initial_state_attention=False, beam_search=True, beam_size=10,
+                                bidirectional=False):
     """Embedding sequence-to-sequence model with attention.
 
     This model first embeds encoder_inputs by a newly created embedding (of shape
@@ -755,7 +765,8 @@ def embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
     Args:
         encoder_inputs: A list of 1D int32 Tensors of shape [batch_size].
         decoder_inputs: A list of 1D int32 Tensors of shape [batch_size].
-        cell: rnn_cell.RNNCell defining the cell function and size.
+        encoder_cell: rnn_cell.RNNCell defining the cell function and size. for encoder
+        decoder_cell: rnn_cell.RNNCell defining the cell function and size. for decoder
         num_encoder_symbols: Integer; number of symbols on the encoder side.
         num_decoder_symbols: Integer; number of symbols on the decoder side.
         encoder_sequence_lengths: 1D int32 Tensor of shape [batch_size].
@@ -775,7 +786,9 @@ def embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
         initial_state_attention: If False (default), initial attentions are zero.
             If True, initialize the attentions from the initial state and attention
             states.
-
+        beam_search: boolean.
+        beam_size: integer.
+        bidirectional: boolean. Flag of using bidirectional rnn or not.
     Returns:
         A tuple of the form (outputs, state), where:
             outputs: A list of the same length as decoder_inputs of 2D Tensors with
@@ -786,28 +799,28 @@ def embedding_attention_seq2seq(encoder_inputs, decoder_inputs, cell,
     """
     with variable_scope.variable_scope(scope or "embedding_attention_seq2seq"):
         # Encoder.
-        encoder_cell = tf.contrib.rnn.EmbeddingWrapper(cell, embedding_classes=num_encoder_symbols,
+        encoder_cell = tf.contrib.rnn.EmbeddingWrapper(encoder_cell, embedding_classes=num_encoder_symbols,
                                                        embedding_size=embedding_size)
-        encoder_outputs, encoder_state = tf.contrib.rnn.static_rnn(encoder_cell, encoder_inputs, dtype=dtype,
-                                                                   sequence_length=encoder_sequence_lengths)
-        # bidirectional_rnn(encoder_cell. encoder_cell, ...)
-        # (fo, bo), (fs, fo)
-        print("Symbols")
-        print(num_encoder_symbols)
-        print(num_decoder_symbols)
-        # First calculate a concatenation of encoder outputs to put attention on.
-        top_states = [array_ops.reshape(e, [-1, 1, cell.output_size])
-                      for e in encoder_outputs]
-        attention_states = array_ops.concat(top_states, 1)
-        print(attention_states)
+        if bidirectional:
+            _r = tf.contrib.rnn.static_bidirectional_rnn(encoder_cell, encoder_cell, encoder_inputs, dtype=dtype,
+                                                         sequence_length=encoder_sequence_lengths)
+            encoder_outputs, fw_state, bw_state = _r
+            encoder_state = tf.concat([fw_state, bw_state], axis=1)
+            top_states = [array_ops.reshape(e, [-1, 1, encoder_cell.output_size * 2]) for e in encoder_outputs]
+            attention_states = array_ops.concat(top_states, 1)
+        else:
+            encoder_outputs, encoder_state = tf.contrib.rnn.static_rnn(encoder_cell, encoder_inputs, dtype=dtype,
+                                                                       sequence_length=encoder_sequence_lengths)
+            top_states = [array_ops.reshape(e, [-1, 1, encoder_cell.output_size]) for e in encoder_outputs]
+            attention_states = array_ops.concat(top_states, 1)
+
         # Decoder.
         output_size = None
         if output_projection is None:
-            cell = tf.contrib.rnn.OutputProjectionWrapper(cell, num_decoder_symbols)
+            decoder_cell = tf.contrib.rnn.OutputProjectionWrapper(decoder_cell, num_decoder_symbols)
             output_size = num_decoder_symbols
-
         return embedding_attention_decoder(decoder_inputs, encoder_state, attention_states,
-                                           cell, num_decoder_symbols, embedding_size,
+                                           decoder_cell, num_decoder_symbols, embedding_size,
                                            num_heads=num_heads,
                                            output_size=output_size,
                                            output_projection=output_projection,

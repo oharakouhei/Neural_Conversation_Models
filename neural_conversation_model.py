@@ -55,6 +55,8 @@ tf.app.flags.DEFINE_boolean("decode", False,
                             "Set to True for interactive decoding.")
 tf.app.flags.DEFINE_boolean("attention", False,
                             "Set to True for interactive decoding.")
+tf.app.flags.DEFINE_boolean("bidirectional", False,
+                            "Set to True for using bidirectional rnn.")
 tf.app.flags.DEFINE_boolean("self_test", False,
                             "Run a self-test if this is set to True.")
 
@@ -100,7 +102,8 @@ def create_model(session, forward_only, beam_search, beam_size=10, attention=Tru
         FLAGS.en_vocab_size, FLAGS.en_vocab_size, _buckets,
         FLAGS.size, FLAGS.num_layers, FLAGS.max_gradient_norm, FLAGS.batch_size,
         FLAGS.learning_rate, FLAGS.learning_rate_decay_factor,
-        forward_only=forward_only, beam_search=beam_search, beam_size=beam_size, attention=attention)
+        forward_only=forward_only, beam_search=beam_search, beam_size=beam_size,
+        attention=attention, bidirectional=FLAGS.bidirectional)
     print(FLAGS.train_dir)
     ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
 
@@ -119,13 +122,13 @@ def create_models(path, en_vocab_size, session, forward_only, beam_search, beam_
         en_vocab_size, en_vocab_size, _buckets,
         FLAGS.size, FLAGS.num_layers, FLAGS.max_gradient_norm, FLAGS.batch_size,
         FLAGS.learning_rate, FLAGS.learning_rate_decay_factor,
-        forward_only=forward_only, beam_search=beam_search, beam_size=beam_size, attention=attention)
+        forward_only=forward_only, beam_search=beam_search, beam_size=beam_size,
+        attention=attention, bidirectional=FLAGS.bidirectional)
     print(FLAGS.train_dir)
     ckpt = tf.train.get_checkpoint_state(path)
 
     # ckpt.model_checkpoint_path ="./big_models/chat_bot.ckpt-183600"
-    # print ckpt.model_checkpoint_path
-    if ckpt and tf.gfile.Exists(ckpt.model_checkpoint_path):
+    if ckpt:
         print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
     else:
@@ -174,7 +177,7 @@ def train():
               % FLAGS.max_train_data_size)
         train_set = read_chat_data(data_path, vocab_path, FLAGS.max_train_data_size)
         dev_set = read_chat_data(dev_data, vocab_path, FLAGS.max_train_data_size)
-
+        print("Readed!")
         train_bucket_sizes = [len(train_set[b]) for b in xrange(len(_buckets))]
         train_total_size = float(sum(train_bucket_sizes))
 
@@ -188,6 +191,7 @@ def train():
         step_time, loss = 0.0, 0.0
         current_step = 0
         previous_losses = []
+        print("start training...")
         while True:
             # Choose a bucket according to data distribution. We pick a random number
             # in [0, 1] and use the corresponding interval in train_buckets_scale.
@@ -200,7 +204,6 @@ def train():
             start_time = time.time()
             _r = model.get_batch(train_set, bucket_id)
             encoder_inputs, decoder_inputs, target_weights, encoder_sequence_lengths = _r
-
             _, step_loss, _ = model.step(sess, encoder_inputs, decoder_inputs,
                                          target_weights, encoder_sequence_lengths,
                                          bucket_id, False, beam_search)
