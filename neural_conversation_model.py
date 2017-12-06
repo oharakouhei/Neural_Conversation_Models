@@ -175,7 +175,9 @@ def train():
         # Read data into buckets and compute their sizes.
         print("Reading development and training data (limit: %d)."
               % FLAGS.max_train_data_size)
+        print("reading training data.")
         train_set = read_chat_data(data_path, vocab_path, FLAGS.max_train_data_size)
+        print("reading development data.")
         dev_set = read_chat_data(dev_data, vocab_path, FLAGS.max_train_data_size)
         print("Readed!")
         train_bucket_sizes = [len(train_set[b]) for b in xrange(len(_buckets))]

@@ -62,6 +62,9 @@ class Seq2SeqModel(object):
         self.learning_rate_decay_op = self.learning_rate.assign(self.learning_rate * learning_rate_decay_factor)
         self.global_step = tf.Variable(0, trainable=False)
 
+        decoder_hidden_size = size
+        if bidirectional:
+            decoder_hidden_size = size * 2
         # If we use sampled softmax, we need an output projection.
         output_projection = None
         softmax_loss_function = None
@@ -69,7 +72,10 @@ class Seq2SeqModel(object):
         if num_samples > 0 and num_samples < self.target_vocab_size:
             # with tf.device("/cpu:0"):
             with tf.variable_scope("output_projection"):
-                w = tf.get_variable("proj_w", [size, self.target_vocab_size])
+                if bidirectional:
+                    w = tf.get_variable("proj_w", [decoder_hidden_size, self.target_vocab_size])
+                else:
+                    w = tf.get_variable("proj_w", [size, self.target_vocab_size])
                 w_t = tf.transpose(w)
                 b = tf.get_variable("proj_b", [self.target_vocab_size])
             output_projection = (w, b)
@@ -82,23 +88,17 @@ class Seq2SeqModel(object):
                                                       self.target_vocab_size)
             softmax_loss_function = sampled_loss
         # Create the internal multi-layer cell for our RNN.
+
         single_encoder_cell = tf.contrib.rnn.GRUCell(size)
+        single_decoder_cell = tf.contrib.rnn.GRUCell(decoder_hidden_size)
         if use_lstm:
             single_encoder_cell = tf.contrib.rnn.BasicLSTMCell(size)
+            single_decoder_cell = tf.contrib.rnn.BasicLSTMCell(decoder_hidden_size)
         encoder_cell = single_encoder_cell
+        decoder_cell = single_decoder_cell
         if num_layers > 1:
             encoder_cell = tf.contrib.rnn.MultiRNNCell([single_encoder_cell] * num_layers, state_is_tuple=False)
-        decoder_cell = None
-        if bidirectional:
-            # decoder cell should have 2x size of encoder cell
-            decoder_single_cell = tf.contrib.rnn.GRUCell(size * 2)
-            if use_lstm:
-                decoder_single_cell = tf.contrib.rnn.BasicLSTMCell(size * 2)
-            decoder_cell = decoder_single_cell
-            if num_layers > 1:
-                decoder_cell = tf.contrib.rnn.MultiRNNCell([decoder_single_cell] * num_layers, state_is_tuple=False)
-        else:
-            decoder_cell = encoder_cell
+            decoder_cell = tf.contrib.rnn.MultiRNNCell([single_decoder_cell] * num_layers, state_is_tuple=False)
 
         # The seq2seq function: we use embedding for the input and attention.
         def seq2seq_f(encoder_inputs, decoder_inputs, do_decode):
