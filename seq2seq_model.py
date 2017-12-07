@@ -61,6 +61,7 @@ class Seq2SeqModel(object):
         self.learning_rate = tf.Variable(float(learning_rate), trainable=False)
         self.learning_rate_decay_op = self.learning_rate.assign(self.learning_rate * learning_rate_decay_factor)
         self.global_step = tf.Variable(0, trainable=False)
+        self.bidirectional = bidirectional
 
         decoder_hidden_size = size
         if bidirectional:
@@ -116,7 +117,7 @@ class Seq2SeqModel(object):
                                                    feed_previous=do_decode,
                                                    beam_search=beam_search,
                                                    beam_size=beam_size,
-                                                   bidirectional=bidirectional)
+                                                   bidirectional=self.bidirectional)
             else:
                 print("Simple Model")
                 return embedding_rnn_seq2seq(encoder_inputs,
@@ -131,7 +132,7 @@ class Seq2SeqModel(object):
                                              feed_previous=do_decode,
                                              beam_search=beam_search,
                                              beam_size=beam_size,
-                                             bidirectional=bidirectional)
+                                             bidirectional=self.bidirectional)
 
         # Feeds for inputs.
         self.encoder_inputs = []

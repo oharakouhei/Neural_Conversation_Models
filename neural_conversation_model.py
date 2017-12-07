@@ -38,7 +38,7 @@ tf.app.flags.DEFINE_integer("batch_size", 64,
                             "Batch size to use during training.")
 tf.app.flags.DEFINE_integer("size", 512, "Size of each model layer.")
 tf.app.flags.DEFINE_integer("num_layers", 3, "Number of layers in the model.")
-tf.app.flags.DEFINE_integer("en_vocab_size", 40000, "English vocabulary size.")
+tf.app.flags.DEFINE_integer("vocab_size", 40000, "English vocabulary size.")
 tf.app.flags.DEFINE_string("train_dir", "./tmp/", "Training directory.")
 tf.app.flags.DEFINE_string("vocab_path", "./tmp/", "Data directory")
 tf.app.flags.DEFINE_string("data_path", "./tmp/", "Training directory.")
@@ -64,7 +64,8 @@ FLAGS = tf.app.flags.FLAGS
 
 # We use a number of buckets and pad to the closest one for efficiency.
 # See seq2seq_model.Seq2SeqModel for details of how they work.
-_buckets = [(5, 10), (10, 15), (20, 25), (40, 50)]
+# _buckets = [(5, 10), (10, 15), (20, 25), (40, 50)]
+_buckets = [(15, 20), (30, 30)]
 
 
 def read_chat_data(data_path, vocabulary_path, max_size=None):
@@ -99,7 +100,7 @@ def read_chat_data(data_path, vocabulary_path, max_size=None):
 def create_model(session, forward_only, beam_search, beam_size=10, attention=True):
     """Create translation model and initialize or load parameters in session."""
     model = Seq2SeqModel(
-        FLAGS.en_vocab_size, FLAGS.en_vocab_size, _buckets,
+        FLAGS.vocab_size, FLAGS.vocab_size, _buckets,
         FLAGS.size, FLAGS.num_layers, FLAGS.max_gradient_norm, FLAGS.batch_size,
         FLAGS.learning_rate, FLAGS.learning_rate_decay_factor,
         forward_only=forward_only, beam_search=beam_search, beam_size=beam_size,
@@ -116,10 +117,10 @@ def create_model(session, forward_only, beam_search, beam_size=10, attention=Tru
     return model
 
 
-def create_models(path, en_vocab_size, session, forward_only, beam_search, beam_size=10, attention=True):
+def create_models(path, vocab_size, session, forward_only, beam_search, beam_size=10, attention=True):
     """Create translation model and initialize or load parameters in session."""
     model = Seq2SeqModel(
-        en_vocab_size, en_vocab_size, _buckets,
+        vocab_size, vocab_size, _buckets,
         FLAGS.size, FLAGS.num_layers, FLAGS.max_gradient_norm, FLAGS.batch_size,
         FLAGS.learning_rate, FLAGS.learning_rate_decay_factor,
         forward_only=forward_only, beam_search=beam_search, beam_size=beam_size,
@@ -147,7 +148,7 @@ def train():
     attention = FLAGS.attention
 
     normalize_digits = True
-    create_vocabulary(vocab_path, data_path, FLAGS.en_vocab_size)
+    create_vocabulary(vocab_path, data_path, FLAGS.vocab_size)
 
     with tf.Session() as sess:
         # setup for tensorboard
